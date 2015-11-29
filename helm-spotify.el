@@ -57,16 +57,15 @@
 
 (defun spotify-play-track (track)
   "Get the Spotify app to play the TRACK."
-  (spotify-play-href (alist-get '(href) track)))
+  (spotify-play-href (alist-get '(uri) track)))
 
 (defun spotify-play-album (track)
   "Get the Spotify app to play the album for this TRACK."
-  (spotify-play-href (alist-get '(album href) track)))
-
+  (spotify-play-href (alist-get '(album uri) track)))
 
 (defun spotify-search (search-term)
   "Search spotify for SEARCH-TERM, returning the results as a Lisp structure."
-  (let ((a-url (format "https://ws.spotify.com/search/1/track.json?q=%s" search-term)))
+  (let ((a-url (format "https://api.spotify.com/v1/search?type=track&q=%s" search-term)))
     (let ((inhibit-message t))
       (with-current-buffer
         (url-retrieve-synchronously a-url)
@@ -75,23 +74,24 @@
 
 (defun spotify-format-track (track)
   "Given a TRACK, return a a formatted string suitable for display."
-  (let ((track-name   (alist-get '(name) track))
-	(track-length (alist-get '(length) track))
-	(album-name   (alist-get '(album name) track))
-	(artist-names (mapcar (lambda (artist)
-				(alist-get '(name) artist))
-			      (alist-get '(artists) track))))
-    (format "%s (%dm%0.2ds)\n%s - %s"
-	    track-name
-	    (/ track-length 60) (mod track-length 60)
-	    (mapconcat 'identity artist-names "/")
-	    album-name)))
+  (let ((track-name      (alist-get '(name) track))
+        (track-length-ms (alist-get '(duration_ms) track))
+        (album-name      (alist-get '(album name) track))
+        (artist-names    (mapcar (lambda (artist)
+                                   (alist-get '(name) artist))
+                                 (alist-get '(artists) track))))
+
+    (let ((track-length (/ track-length-ms 1000)))
+      (format "%s (%dm%0.2ds)\n%s - %s"
+              track-name
+              (/ track-length 60) (mod track-length 60)
+              (mapconcat 'identity artist-names "/")
+              album-name))))
 
 (defun spotify-search-formatted (search-term)
   (mapcar (lambda (track)
-	    (cons (spotify-format-track track) track))
-	  (alist-get '(tracks) (spotify-search search-term))))
-
+            (cons (spotify-format-track track) track))
+          (alist-get '(items) (alist-get '(tracks) (spotify-search search-term)))))
 
 (defun helm-spotify-search ()
   (spotify-search-formatted helm-pattern))
