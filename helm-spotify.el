@@ -72,29 +72,76 @@
       (goto-char url-http-end-of-headers)
       (json-read)))))
 
+(defun spotify-track-name (track)
+  "Get the name of the TRACK."
+  (alist-get '(name) track))
+
+(defun spotify-track-duration (track)
+  "Get the duration of the TRACK."
+  (alist-get '(duration_ms) track))
+
+(defun spotify-track-album-name (track)
+  "Get the album name of the TRACK."
+  (alist-get '(album name) track))
+
+(defun spotify-track-artist-name (track)
+  "Get the artist names of the TRACK."
+  (mapcar (lambda (artist)
+            (alist-get '(name) artist))
+          (alist-get '(artists) track)))
+
+(defun spotify-format-artist-name (names)
+  "Format the artist NAMES."
+  (mapconcat 'identity names "/"))
+
 (defun spotify-format-track (track)
   "Given a TRACK, return a a formatted string suitable for display."
-  (let ((track-name      (alist-get '(name) track))
-        (track-length-ms (alist-get '(duration_ms) track))
-        (album-name      (alist-get '(album name) track))
-        (artist-names    (mapcar (lambda (artist)
-                                   (alist-get '(name) artist))
-                                 (alist-get '(artists) track))))
+  (let ((track-name      (spotify-track-name track))
+        (track-length-ms (spotify-track-duration track))
+        (album-name      (spotify-track-album-name track))
+        (artist-names    (spotify-track-artist-name track)))
 
     (let ((track-length (/ track-length-ms 1000)))
-      (format "%s (%dm%0.2ds)\n%s - %s"
+      (format "%s (%dm%0.2ds) %s - %s"
               track-name
               (/ track-length 60) (mod track-length 60)
-              (mapconcat 'identity artist-names "/")
+              (spotify-format-artist-name artist-names)
               album-name))))
 
-(defun spotify-search-formatted (search-term)
-  (mapcar (lambda (track)
-            (cons (spotify-format-track track) track))
-          (alist-get '(items) (alist-get '(tracks) (spotify-search search-term)))))
 
-(defun helm-spotify-search ()
-  (spotify-search-formatted helm-pattern))
+(defun spotify-format-album (track)
+  "Given a TRACK, return a a formatted string suitable for display."
+  (let ((album-name      (spotify-track-album-name track))
+        (artist-names    (spotify-track-artist-name track)))
+    (format "%s - %s"
+            (spotify-format-artist-name artist-names)
+            album-name)))
+
+(defun spotify-search-formatted (search-term format-function)
+  "Do the search on SEARCH-TERM to spotify and return a correctly formatted list based on FORMAT-FUNCTION."
+  (spotify-unique-list
+   (mapcar (lambda (track)
+             (cons (funcall format-function track) track))
+           (alist-get '(items) (alist-get '(tracks) (spotify-search search-term))))))
+
+(defun spotify-unique-list (tracks)
+  "Given a list of TRACKS, unique them."
+  (if (not tracks)
+      '()
+    (let ((track (car tracks)))
+      (let ((format-string (car track)))
+        (cons track (spotify-unique-list
+                     (-remove (lambda (other-track)
+                                (string= (car other-track) format-string))
+                                (cdr tracks))))))))
+
+(defun helm-spotify-search-track ()
+  "Run the search by track."
+  (spotify-search-formatted helm-pattern 'spotify-format-track))
+
+(defun helm-spotify-search-album ()
+  "Run the search by album."
+  (spotify-search-formatted helm-pattern 'spotify-format-album))
 
 (defun helm-spotify-actions-for-track (actions track)
   "Return a list of helm ACTIONS available for this TRACK."
@@ -102,22 +149,40 @@
     (,(format "Play Album - %s" (alist-get '(album name) track)) . spotify-play-album)
     ("Show Track Metadata" . pp)))
 
-;;;###autoload
-(defvar helm-source-spotify-track-search
-  '((name . "Spotify")
-    (volatile)
-    (delayed)
-    (multiline)
-    (requires-pattern . 2)
-    (candidates-process . helm-spotify-search)
-    (action-transformer . helm-spotify-actions-for-track)))
+(defun helm-spotify-actions-for-album (actions track)
+  "Return a list of helm ACTIONS available for this TRACK."
+  `((,(format "Play Album - %s" (alist-get '(album name) track)) . spotify-play-album)
+      ("Show Track Metadata" . pp)))
 
 ;;;###autoload
-(defun helm-spotify ()
-  "Bring up a Spotify search interface in helm."
+(defvar helm-source-spotify-track-search
+  '((name . "Spotify Track")
+    (volatile)
+    (delayed)
+    (requires-pattern . 2)
+    (candidates-process . helm-spotify-search-track)
+    (action-transformer . helm-spotify-actions-for-track)))
+
+(defvar helm-source-spotify-album-search
+  '((name . "Spotify Artist")
+    (volatile)
+    (delayed)
+    (requires-pattern . 2)
+    (candidates-process . helm-spotify-search-album)
+    (action-transformer . helm-spotify-actions-for-album)))
+
+;;;###autoload
+(defun helm-spotify-track ()
+  "Bring up a Spotify track search interface in helm."
   (interactive)
   (helm :sources '(helm-source-spotify-track-search)
-	:buffer "*helm-spotify*"))
+	:buffer "*helm-spotify-track*"))
+
+(defun helm-spotify-artist ()
+  "Bring up a Spotify artist search interface in helm."
+  (interactive)
+  (helm :sources '(helm-source-spotify-album-search)
+	:buffer "*helm-spotify-album*"))
 
 (provide 'helm-spotify)
 ;;; helm-spotify.el ends here
