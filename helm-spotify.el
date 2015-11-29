@@ -66,11 +66,12 @@
 
 (defun spotify-search (search-term)
   "Search spotify for SEARCH-TERM, returning the results as a Lisp structure."
-  (let ((a-url (format "http://ws.spotify.com/search/1/track.json?q=%s" search-term)))
-    (with-current-buffer
-	(url-retrieve-synchronously a-url)
+  (let ((a-url (format "https://ws.spotify.com/search/1/track.json?q=%s" search-term)))
+    (let ((inhibit-message t))
+      (with-current-buffer
+        (url-retrieve-synchronously a-url)
       (goto-char url-http-end-of-headers)
-      (json-read))))
+      (json-read)))))
 
 (defun spotify-format-track (track)
   "Given a TRACK, return a a formatted string suitable for display."
