@@ -135,13 +135,18 @@
                                 (string= (car other-track) format-string))
                                 (cdr tracks))))))))
 
+(defun helm-spotify-pattern ()
+  "Adds a wildcard to the end of the pattern"
+  (concat helm-pattern "*"))
+
+
 (defun helm-spotify-search-track ()
   "Run the search by track."
-  (spotify-search-formatted helm-pattern 'spotify-format-track))
+  (spotify-search-formatted (helm-spotify-pattern) 'spotify-format-track))
 
 (defun helm-spotify-search-album ()
   "Run the search by album."
-  (spotify-search-formatted helm-pattern 'spotify-format-album))
+  (spotify-search-formatted (helm-spotify-pattern) 'spotify-format-album))
 
 (defun helm-spotify-actions-for-track (actions track)
   "Return a list of helm ACTIONS available for this TRACK."
